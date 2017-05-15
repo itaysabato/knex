@@ -13,7 +13,7 @@ import SchemaCompiler from './schema/compiler';
 import {makeEscape} from '../../query/string'
 
 function Client_PG(config) {
-  Client.apply(this, arguments)
+  Client.apply(this, arguments);
   if (config.returning) {
     this.defaultReturning = config.returning;
   }
@@ -21,8 +21,12 @@ function Client_PG(config) {
   if (config.searchPath) {
     this.searchPath = config.searchPath;
   }
+
+  if (config.version) {
+    this.version = config.version;
+  }
 }
-inherits(Client_PG, Client)
+inherits(Client_PG, Client);
 
 assign(Client_PG.prototype, {
 
@@ -74,7 +78,7 @@ assign(Client_PG.prototype, {
       }
       return escaped
     },
-    escapeObject(val, timezone, prepareValue, seen = []) {
+    escapeObject(val, prepareValue, timezone, seen = []) {
       if (val && typeof val.toPostgres === 'function') {
         seen = seen || [];
         if (seen.indexOf(val) !== -1) {

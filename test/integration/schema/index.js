@@ -150,7 +150,7 @@ module.exports = function(knex) {
           }).testSql(function(tester) {
             tester('mysql', ['create table `datatype_test` (`enum_value` enum(\'a\', \'b\', \'c\'), `uuid` char(36) not null) default character set utf8']);
             tester('pg', ['create table "datatype_test" ("enum_value" text check ("enum_value" in (\'a\', \'b\', \'c\')), "uuid" uuid not null)']);
-            tester('sqlite3', ['create table "datatype_test" ("enum_value" varchar, "uuid" char(36) not null)']);
+            tester('sqlite3', ['create table "datatype_test" ("enum_value" text check ("enum_value" in (\'a\', \'b\', \'c\')), "uuid" char(36) not null)']);
             tester('oracle', ['create table "datatype_test" ("enum_value" varchar2(1) check ("enum_value" in (\'a\', \'b\', \'c\')), "uuid" char(36) not null)']);
             tester('mssql', ['CREATE TABLE [datatype_test] ([enum_value] nvarchar(100), [uuid] uniqueidentifier not null)']);
           });
@@ -465,6 +465,60 @@ module.exports = function(knex) {
       it('checks whether a column exists, resolving with a boolean', function() {
         return knex.schema.hasColumn('accounts', 'first_name').then(function(exists) {
           expect(exists).to.equal(true);
+        });
+      });
+    });
+
+    describe('addColumn', function() {
+      describe('mysql only', function() {
+        if(!knex || !knex.client || (!(/mysql/i.test(knex.client.dialect)) && !(/maria/i.test(knex.client.dialect)))) {
+          return Promise.resolve();
+        }
+
+        before(function() {
+          return knex.schema.createTable('add_column_test_mysql', function (tbl) {
+            tbl.integer('field_foo');
+            tbl.integer('field_bar');
+          }).then(function() {
+            return knex.schema.alterTable('add_column_test_mysql', function (tbl) {
+              tbl.integer('field_foo').comment('foo').alter();
+              tbl.integer('field_bar').comment('bar').alter();
+              tbl.integer('field_first').first().comment('First');
+              tbl.integer('field_after_foo').after('field_foo').comment('After');
+            });
+          });
+        });
+
+        after(function() {
+          return knex.schema.dropTable('add_column_test_mysql');
+        });
+
+        it('should columns order be correctly with after and first', function() {
+          return knex.raw('SHOW CREATE TABLE `add_column_test_mysql`').then(function(schema) {
+            // .columnInfo() keys does not guaranteed fields order.
+            var fields = schema[0][0]['Create Table'].split('\n')
+            .filter(function(e) { return e.trim().indexOf('`field_') === 0 })
+            .map(function(e) { return e.trim() })
+            .map(function(e) { return e.slice(1, e.slice(1).indexOf('`') + 1) });
+
+            // Fields order
+            expect(fields[0]).to.equal('field_first');
+            expect(fields[1]).to.equal('field_foo');
+            expect(fields[2]).to.equal('field_after_foo');
+            expect(fields[3]).to.equal('field_bar');
+
+            // .columnInfo() does not included fields comment.
+            var comments = schema[0][0]['Create Table'].split('\n')
+            .filter(function(e) { return e.trim().indexOf('`field_') === 0 })
+            .map(function(e) { return e.slice(e.indexOf("'")).trim() })
+            .map(function(e) { return e.slice(1, e.slice(1).indexOf("'") + 1) });
+
+            // Fields comment
+            expect(comments[0]).to.equal('First');
+            expect(comments[1]).to.equal('foo');
+            expect(comments[2]).to.equal('After');
+            expect(comments[3]).to.equal('bar');
+          });
         });
       });
     });
